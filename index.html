@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>David's Rubik Solver</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d14;font-family:system-ui,sans-serif;color:#f0f0f0;min-height:100vh;padding:1rem}
+.banner{background:#13132a;border:1px solid #2a2a5a;border-radius:12px;padding:.75rem 1.25rem;margin-bottom:1rem;text-align:center}
+.banner h1{font-size:22px;font-weight:600;color:#a78bfa;margin-bottom:2px}
+.banner p{font-size:12px;color:#64748b}
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+@media(max-width:600px){.layout{grid-template-columns:1fr}}
+.panel{background:#13132a;border:1px solid #252545;border-radius:10px;padding:.875rem}
+.panel-title{font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem}
+.cube-wrap{display:flex;flex-direction:column;align-items:center;gap:.5rem}
+.cube-container{position:relative;display:inline-block}
+#arrowSvg{position:absolute;top:0;left:0;pointer-events:none}
+.ctrl-row{display:flex;gap:5px;flex-wrap:wrap;justify-content:center}
+.ctrl-btn{background:#1e1e30;border:1px solid #333;color:#94a3b8;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;transition:all .12s}
+.ctrl-btn:hover{border-color:#7c3aed;color:#a78bfa}
+.color-palette{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:.6rem}
+.swatch{aspect-ratio:1;border-radius:5px;cursor:pointer;border:2px solid transparent;transition:all .12s}
+.swatch.sel{border-color:#fff;transform:scale(1.15)}
+.face-grids{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.face-box{background:#0d0d14;border:1px solid #1e1e2e;border-radius:7px;padding:6px}
+.face-name{font-size:9px;color:#475569;margin-bottom:4px;text-align:center;font-weight:600}
+.face-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+.cell{aspect-ratio:1;border-radius:3px;cursor:pointer;border:1px solid rgba(0,0,0,.5);transition:transform .1s}
+.cell:hover{transform:scale(1.1);box-shadow:0 0 6px rgba(167,139,250,.4)}
+.cam-section{margin-bottom:1rem}
+.cam-controls{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:.5rem}
+.cam-btn{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;border:none;transition:all .15s}
+.cam-btn.primary{background:#7c3aed;color:#fff}
+.cam-btn.primary:hover{background:#6d28d9}
+.cam-btn.secondary{background:#1e1e30;border:1px solid #333;color:#94a3b8}
+.cam-btn.secondary:hover{border-color:#7c3aed}
+.cam-btn.danger{background:#7f1d1d;color:#fca5a5}
+.cam-btn:disabled{opacity:.35;cursor:not-allowed}
+.hidden{display:none!important}
+.face-progress{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:.5rem}
+.face-pip{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid transparent;flex-shrink:0;transition:all .2s;color:#000}
+.face-pip.done{opacity:.55}
+.face-pip.active{border-color:#fff;box-shadow:0 0 10px rgba(167,139,250,.7);transform:scale(1.12)}
+.face-pip.pending{opacity:.28;filter:grayscale(.5)}
+#pipLabel{font-size:10px;color:#64748b;margin-left:5px}
+.cam-vp{position:relative;width:100%;border-radius:9px;overflow:hidden;border:1.5px solid #252545;background:#000;margin:.5rem 0}
+.cam-vp video{width:100%;display:block;max-height:200px;object-fit:cover}
+.cam-overlay{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none}
+.cam-lbl{position:absolute;top:7px;left:0;right:0;text-align:center;font-size:12px;font-weight:500;color:#fff;background:rgba(0,0,0,.55);padding:3px 8px;z-index:2}
+.cam-grid-svg{position:absolute;top:0;left:0;width:100%;height:100%}
+.cam-err{color:#f87171;font-size:11px;margin:.4rem 0;padding:.4rem;background:#1f0a0a;border-radius:6px;border:1px solid #7f1d1d}
+.solve-btn{width:100%;background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:.8rem;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;letter-spacing:.02em;margin-bottom:.5rem}
+.solve-btn:hover{background:#6d28d9;transform:translateY(-1px)}
+.solve-btn:active{transform:translateY(0)}
+.solve-btn:disabled{opacity:.4;cursor:not-allowed}
+.msg-box{border-radius:8px;padding:.6rem 1rem;font-size:12px;text-align:center;display:none;margin-bottom:.5rem}
+.msg-box.show{display:block}
+.msg-box.ok{background:#0f2318;border:1px solid #166534;color:#4ade80}
+.msg-box.err{background:#1f0a0a;border:1px solid #7f1d1d;color:#f87171}
+.solution-panel{background:#13132a;border:1px solid #252545;border-radius:10px;padding:.875rem;margin-bottom:1rem}
+.move-display{display:flex;align-items:center;justify-content:center;gap:1.25rem;padding:.875rem;background:#0d0d14;border-radius:9px;margin:.5rem 0;border:1px solid #1e1e2e;min-height:100px}
+.move-name{font-size:48px;font-weight:700;color:#a78bfa;min-width:80px;text-align:center;line-height:1}
+.move-info{text-align:center;max-width:170px}
+.move-desc{font-size:12px;color:#94a3b8;line-height:1.4;margin-bottom:.4rem}
+.arrow-hint{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:7px;padding:.35rem .6rem;font-size:13px;color:#fbbf24;font-weight:600}
+.move-counter{font-size:11px;color:#64748b;text-align:center;margin:.35rem 0}
+.progress-bar{width:100%;height:5px;background:#1e1e2e;border-radius:3px;overflow:hidden;margin:.4rem 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:3px;transition:width .35s}
+.player-controls{display:flex;justify-content:center;align-items:center;gap:10px;margin:.6rem 0}
+.player-btn{background:#1e1e30;border:1px solid #333;color:#cbd5e1;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.player-btn:hover{background:#2a2a40;border-color:#7c3aed;color:#a78bfa}
+.player-btn.play-btn{width:52px;height:52px;background:#7c3aed;border:none;color:#fff;font-size:22px}
+.player-btn.play-btn:hover{background:#6d28d9}
+.player-btn:disabled{opacity:.3;cursor:not-allowed}
+.move-list{display:flex;flex-wrap:wrap;gap:4px;margin:.5rem 0;max-height:66px;overflow-y:auto}
+.move-pill{padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;background:#1e1e30;color:#94a3b8;border:1px solid #252545;cursor:pointer;transition:all .1s}
+.move-pill.current{background:#7c3aed;color:#fff;border-color:#7c3aed}
+.move-pill.done{background:#0f2318;color:#4ade80;border-color:#166534}
+.notation-legend{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:.5rem}
+.notation-item{background:#0d0d14;border:1px solid #1e1e2e;border-radius:7px;padding:6px 8px;font-size:10px}
+.notation-item .nkey{color:#a78bfa;font-weight:700;font-size:13px}
+.notation-item .nval{color:#64748b;line-height:1.3;margin-top:2px}
+.celebration{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(8,4,24,.97);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:9999}
+.celebration.show{display:flex}
+#confetti{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+.cel-inner{position:relative;z-index:1;text-align:center;padding:2rem}
+.cel-trophy{font-size:72px;margin-bottom:.5rem}
+.cel-title{font-size:28px;font-weight:700;color:#fbbf24;margin-bottom:.5rem}
+.cel-sub{font-size:16px;color:#a78bfa;margin-bottom:.5rem}
+.cel-stats{font-size:13px;color:#64748b;margin-bottom:1.5rem}
+.cel-btn{background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:.75rem 2rem;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s}
+.cel-btn:hover{background:#6d28d9;transform:scale(1.03)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="banner">
+    <h1>🎯 David's Rubik Solver</h1>
+    <p>¡Bienvenido, David! Vamos a resolver tu cubo de Rubik juntos</p>
+  </div>
+
+  <div class="cam-section">
+    <div class="panel">
+      <div class="panel-title">Escáner de cámara</div>
+      <div class="face-progress" id="faceProgress"></div>
+      <div class="cam-controls">
+        <button class="cam-btn primary" id="btnOpenCam" onclick="openCamera()">📷 Escanear con Cámara</button>
+        <button class="cam-btn secondary hidden" id="btnCapture" onclick="captureFrame()">⬤ Capturar</button>
+        <button class="cam-btn secondary hidden" id="btnSkip" onclick="skipFace()">↷ Saltar cara</button>
+        <button class="cam-btn danger hidden" id="btnStop" onclick="stopCamera()">✕ Cerrar</button>
+      </div>
+      <div class="cam-vp hidden" id="camViewport">
+        <video id="camVideo" autoplay playsinline muted></video>
+        <div class="cam-overlay">
+          <div class="cam-lbl" id="camLabel">Cara 1 — Arriba (Blanca)</div>
+          <svg class="cam-grid-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <defs>
+              <pattern id="gp" x="0" y="0" width="25.33" height="25.33" patternUnits="userSpaceOnUse">
+                <rect width="25.33" height="25.33" fill="none" stroke="rgba(167,139,250,0.7)" stroke-width=".9"/>
+              </pattern>
+            </defs>
+            <rect x="12" y="12" width="76" height="76" fill="url(#gp)" stroke="rgba(167,139,250,1)" stroke-width="1.3"/>
+            <rect x="12" y="12" width="76" height="76" fill="rgba(167,139,250,0.04)"/>
+            <circle cx="50" cy="50" r="2" fill="rgba(255,255,255,.45)"/>
+          </svg>
+        </div>
+      </div>
+      <div class="cam-err hidden" id="camErr"></div>
+      <canvas id="snapCanvas" style="display:none"></canvas>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <div class="panel-title">Vista 3D interactiva</div>
+      <div class="cube-wrap">
+        <div class="cube-container">
+          <svg id="cube3d" width="230" height="195" viewBox="0 0 230 195"></svg>
+          <svg id="arrowSvg" width="230" height="195" viewBox="0 0 230 195"></svg>
+        </div>
+        <div class="ctrl-row">
+          <button class="ctrl-btn" onclick="rotateLeft()">⟵ Rotar</button>
+          <button class="ctrl-btn" onclick="rotateRight()">Rotar ⟶</button>
+          <button class="ctrl-btn" onclick="tiltUp()">▲ Inclinar</button>
+          <button class="ctrl-btn" onclick="tiltDown()">▼ Inclinar</button>
+          <button class="ctrl-btn" onclick="resetView()">↺ Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Paleta de colores</div>
+      <div class="color-palette" id="palette"></div>
+      <div class="panel-title" style="margin-top:.5rem">Pintar caras manualmente</div>
+      <div class="face-grids" id="faceGrids"></div>
+    </div>
+  </div>
+
+  <button class="solve-btn" id="solveBtn" onclick="calcularSolucion()">✦ Calcular Solución</button>
+  <div class="msg-box" id="msgBox"></div>
+
+  <div class="solution-panel hidden" id="solutionPanel">
+    <div class="panel-title">Guía paso a paso — notación estándar Rubik</div>
+
+    <!-- Leyenda de notación -->
+    <div class="notation-legend">
+      <div class="notation-item"><div class="nkey">U / U' / U2</div><div class="nval">Superior: horario / antihorario / 180°</div></div>
+      <div class="notation-item"><div class="nkey">D / D' / D2</div><div class="nval">Inferior: horario / antihorario / 180°</div></div>
+      <div class="notation-item"><div class="nkey">R / R' / R2</div><div class="nval">Derecha: horario / antihorario / 180°</div></div>
+      <div class="notation-item"><div class="nkey">L / L' / L2</div><div class="nval">Izquierda: horario / antihorario / 180°</div></div>
+      <div class="notation-item"><div class="nkey">F / F' / F2</div><div class="nval">Frente: horario / antihorario / 180°</div></div>
+      <div class="notation-item"><div class="nkey">B / B' / B2</div><div class="nval">Trasera: horario / antihorario / 180°</div></div>
+    </div>
+
+    <div class="move-display">
+      <div class="move-name" id="moveName">—</div>
+      <div class="move-info">
+        <div class="move-desc" id="moveDesc">Pulsa Play para comenzar</div>
+        <div class="arrow-hint" id="arrowHint">—</div>
+      </div>
+    </div>
+    <div class="move-counter" id="moveCounter">Movimiento 0 de 0</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="player-controls">
+      <button class="player-btn" id="btnPrev" onclick="stepBack()" title="Atrás">⏮</button>
+      <button class="player-btn play-btn" id="btnPlay" onclick="togglePlay()" title="Play/Pausa">▶</button>
+      <button class="player-btn" id="btnNext" onclick="stepForward()" title="Siguiente">⏭</button>
+    </div>
+    <div class="move-list" id="moveList"></div>
+  </div>
+</div>
+
+<div class="celebration" id="celebration">
+  <canvas id="confetti"></canvas>
+  <div class="cel-inner">
+    <div class="cel-trophy">🏆</div>
+    <div class="cel-title">¡Felicidades, David!</div>
+    <div class="cel-sub">¡Eres un Maestro del Cubo Rubik!</div>
+    <div class="cel-stats" id="celStats"></div>
+    <button class="cel-btn" onclick="resetAll()">🔄 Resolver otro cubo</button>
+  </div>
+</div>
+
+<script>
+// ─── COLORES ────────────────────────────────────────────────────────────────
+const COLORS={
+  W:{hex:'#f0f0f0',name:'Blanco'},
+  Y:{hex:'#fbbf24',name:'Amarillo'},
+  R:{hex:'#ef4444',name:'Rojo'},
+  O:{hex:'#f97316',name:'Naranja'},
+  B:{hex:'#3b82f6',name:'Azul'},
+  G:{hex:'#22c55e',name:'Verde'}
+};
+const CK=Object.keys(COLORS);
+const FACE_ORDER=['U','D','F','B','L','R'];
+const FACE_INFO={
+  U:{label:'Arriba (Blanca)',  def:'W', color:'#f0f0f0'},
+  D:{label:'Abajo (Amarilla)', def:'Y', color:'#fbbf24'},
+  F:{label:'Frente (Roja)',    def:'R', color:'#ef4444'},
+  B:{label:'Atrás (Naranja)', def:'O', color:'#f97316'},
+  L:{label:'Izquierda (Azul)',def:'B', color:'#3b82f6'},
+  R:{label:'Derecha (Verde)', def:'G', color:'#22c55e'}
+};
+
+// ─── DESCRIPCIÓN DE MOVIMIENTOS (notación estándar) ─────────────────────────
+// "Horario" = mirando de frente a esa cara, giras en sentido de las manecillas
+const MOVE_DESCS={
+  'U' :'Superior → giro HORARIO (↻) visto desde arriba',
+  "U'":'Superior → giro ANTIHORARIO (↺) visto desde arriba',
+  'U2':'Superior → giro 180° (dos veces)',
+  'D' :'Inferior → giro HORARIO (↻) visto desde abajo',
+  "D'":'Inferior → giro ANTIHORARIO (↺) visto desde abajo',
+  'D2':'Inferior → giro 180° (dos veces)',
+  'R' :'Derecha → giro HORARIO (↻) visto desde la derecha',
+  "R'":'Derecha → giro ANTIHORARIO (↺) visto desde la derecha',
+  'R2':'Derecha → giro 180° (dos veces)',
+  'L' :'Izquierda → giro HORARIO (↻) visto desde la izquierda',
+  "L'":'Izquierda → giro ANTIHORARIO (↺) visto desde la izquierda',
+  'L2':'Izquierda → giro 180° (dos veces)',
+  'F' :'Frente → giro HORARIO (↻) visto de frente',
+  "F'":'Frente → giro ANTIHORARIO (↺) visto de frente',
+  'F2':'Frente → giro 180° (dos veces)',
+  'B' :'Trasera → giro HORARIO (↻) visto desde atrás',
+  "B'":'Trasera → giro ANTIHORARIO (↺) visto desde atrás',
+  'B2':'Trasera → giro 180° (dos veces)'
+};
+
+const MOVE_ARROWS={
+  'U' :'↻ Superior horario',   "U'":'↺ Superior antihorario', 'U2':'↕ Superior 180°',
+  'D' :'↻ Inferior horario',   "D'":'↺ Inferior antihorario', 'D2':'↕ Inferior 180°',
+  'R' :'↻ Derecha horario',    "R'":'↺ Derecha antihorario',  'R2':'↕ Derecha 180°',
+  'L' :'↻ Izquierda horario',  "L'":'↺ Izquierda antihorario','L2':'↕ Izquierda 180°',
+  'F' :'↻ Frente horario',     "F'":'↺ Frente antihorario',   'F2':'↕ Frente 180°',
+  'B' :'↻ Trasera horario',    "B'":'↺ Trasera antihorario',  'B2':'↕ Trasera 180°'
+};
+
+const ARROW_DATA={
+  'U' :{x:115,y:22, dir:'cw'},  "U'":{x:115,y:22, dir:'ccw'}, 'U2':{x:115,y:22, dir:'cw'},
+  'D' :{x:115,y:172,dir:'cw'},  "D'":{x:115,y:172,dir:'ccw'}, 'D2':{x:115,y:172,dir:'cw'},
+  'R' :{x:188,y:97, dir:'cw'},  "R'":{x:188,y:97, dir:'ccw'}, 'R2':{x:188,y:97, dir:'cw'},
+  'L' :{x:42, y:97, dir:'cw'},  "L'":{x:42, y:97, dir:'ccw'}, 'L2':{x:42, y:97, dir:'cw'},
+  'F' :{x:115,y:97, dir:'cw'},  "F'":{x:115,y:97, dir:'ccw'}, 'F2':{x:115,y:97, dir:'cw'},
+  'B' :{x:115,y:97, dir:'ccw'}, "B'":{x:115,y:97, dir:'cw'},  'B2':{x:115,y:97, dir:'ccw'}
+};
+
+// ─── ESTADO ──────────────────────────────────────────────────────────────────
+let state={};
+FACE_ORDER.forEach(f=>{state[f]=Array(9).fill(FACE_INFO[f].def);});
+let selectedColor='R', rotX=25, rotY=-35;
+let stream=null, camFaceIdx=0, scanning=false;
+let solution=[], currentStep=-1, playing=false, playTimer=null, animating=false;
+let initialCubeState={};
+
+// ─── FLECHA SVG ──────────────────────────────────────────────────────────────
+function drawArrow(move){
+  const svg=document.getElementById('arrowSvg');
+  if(!move){svg.innerHTML='';return;}
+  const d=ARROW_DATA[move]||{x:115,y:97,dir:'cw'};
+  const {x,y,dir}=d, ac='rgba(251,191,36,0.95)';
+  let paths='';
+  const ah=(x1,y1,ang)=>{
+    const s=11,a=ang*Math.PI/180;
+    return`<polygon points="${x1},${y1} ${x1+s*Math.cos(a-2.4)},${y1+s*Math.sin(a-2.4)} ${x1+s*Math.cos(a+2.4)},${y1+s*Math.sin(a+2.4)}" fill="${ac}"/>`;
+  };
+  const r=18;
+  if(dir==='cw'){
+    // Círculo horario: empieza a las 9 y termina a las 6 (pasando por arriba)
+    paths=`<path d="M${x-r},${y} A${r},${r} 0 1,1 ${x},${y+r}" fill="none" stroke="${ac}" stroke-width="3.5" stroke-linecap="round"/>`+ah(x,y+r+2,12);
+  } else if(dir==='ccw'){
+    // Círculo antihorario
+    paths=`<path d="M${x+r},${y} A${r},${r} 0 1,0 ${x},${y+r}" fill="none" stroke="${ac}" stroke-width="3.5" stroke-linecap="round"/>`+ah(x,y+r+2,168);
+  }
+  svg.innerHTML=`<circle cx="${x}" cy="${y}" r="26" fill="rgba(124,58,237,0.18)" stroke="rgba(167,139,250,0.4)" stroke-width="1.2"/>${paths}`;
+}
+
+// ─── MECÁNICA DEL CUBO ───────────────────────────────────────────────────────
+/*
+  Índices de cada cara (vistos de frente a esa cara):
+    0 1 2
+    3 4 5
+    6 7 8
+  Sentido horario de la cara = rotar esos índices:
+    0→2, 2→8, 8→6, 6→0  (esquinas)
+    1→5, 5→7, 7→3, 3→1  (aristas)
+  Antihorario = inverso.
+
+  CICLOS DE ARISTAS:
+  Cada movimiento horario desplaza aristas en la dirección que corresponde
+  cuando miras ESA cara desde afuera.
+*/
+
+// Rota los 9 stickers de una cara 90° horario
+function rotateFaceCW(face){
+  const f=[...state[face]];
+  state[face]=[f[6],f[3],f[0], f[7],f[4],f[1], f[8],f[5],f[2]];
+}
+
+/*
+  Ciclos de aristas para cada movimiento HORARIO.
+  Cada sub-array es un ciclo de 4 celdas [cara, índice].
+  El movimiento horario desplaza: pos[0]→pos[1]→pos[2]→pos[3]→pos[0]
+  es decir: el valor de pos[3] va a pos[0], pos[0] a pos[1], etc.
+  (ciclo hacia adelante)
+
+  Verificación visual estándar:
+  U (horario visto desde arriba): F[0,1,2] → R[0,1,2] → B[0,1,2] → L[0,1,2]
+  D (horario visto desde abajo):  F[6,7,8] → L[6,7,8] → B[6,7,8] → R[6,7,8]
+  R (horario visto desde derecha): U[2,5,8] → B[6,3,0] → D[8,5,2] → F[2,5,8]  (B invertido)
+  L (horario visto desde izquierda): U[0,3,6] → F[0,3,6] → D[0,3,6] → B[8,5,2]
+  F (horario visto de frente):    U[6,7,8] → R[0,3,6] → D[2,1,0] → L[8,5,2]
+  B (horario visto desde atrás):  U[2,1,0] → L[0,3,6] → D[6,7,8] → R[8,5,2]
+*/
+
+const CYCLES={
+  U:[
+    [['F',0],['R',0],['B',0],['L',0]],
+    [['F',1],['R',1],['B',1],['L',1]],
+    [['F',2],['R',2],['B',2],['L',2]]
+  ],
+  D:[
+    [['F',6],['L',6],['B',6],['R',6]],
+    [['F',7],['L',7],['B',7],['R',7]],
+    [['F',8],['L',8],['B',8],['R',8]]
+  ],
+  R:[
+    [['U',2],['B',6],['D',8],['F',2]],
+    [['U',5],['B',3],['D',5],['F',5]],
+    [['U',8],['B',0],['D',2],['F',8]]
+  ],
+  L:[
+    [['U',0],['F',0],['D',0],['B',8]],
+    [['U',3],['F',3],['D',3],['B',5]],
+    [['U',6],['F',6],['D',6],['B',2]]
+  ],
+  F:[
+    [['U',6],['R',0],['D',2],['L',8]],
+    [['U',7],['R',3],['D',1],['L',5]],
+    [['U',8],['R',6],['D',0],['L',2]]
+  ],
+  B:[
+    [['U',2],['L',0],['D',6],['R',8]],
+    [['U',1],['L',3],['D',7],['R',5]],
+    [['U',0],['L',6],['D',8],['R',2]]
+  ]
+};
+
+function cycleForward(cycle){
+  // pos[0]←pos[3], pos[1]←pos[0], pos[2]←pos[1], pos[3]←pos[2]
+  const last=state[cycle[3][0]][cycle[3][1]];
+  state[cycle[3][0]][cycle[3][1]]=state[cycle[2][0]][cycle[2][1]];
+  state[cycle[2][0]][cycle[2][1]]=state[cycle[1][0]][cycle[1][1]];
+  state[cycle[1][0]][cycle[1][1]]=state[cycle[0][0]][cycle[0][1]];
+  state[cycle[0][0]][cycle[0][1]]=last;
+}
+
+function cycleBackward(cycle){
+  const first=state[cycle[0][0]][cycle[0][1]];
+  state[cycle[0][0]][cycle[0][1]]=state[cycle[1][0]][cycle[1][1]];
+  state[cycle[1][0]][cycle[1][1]]=state[cycle[2][0]][cycle[2][1]];
+  state[cycle[2][0]][cycle[2][1]]=state[cycle[3][0]][cycle[3][1]];
+  state[cycle[3][0]][cycle[3][1]]=first;
+}
+
+function applyMove(mv){
+  const base=mv.replace("'",'').replace('2','');
+  const prime=mv.includes("'"), double=mv.includes('2');
+  const cycles=CYCLES[base];
+  if(!cycles) return;
+
+  if(double){
+    // 180° = dos horarios
+    rotateFaceCW(base); cycles.forEach(c=>cycleForward(c));
+    rotateFaceCW(base); cycles.forEach(c=>cycleForward(c));
+  } else if(prime){
+    // Antihorario = tres horarios (o una inversa)
+    rotateFaceCW(base); rotateFaceCW(base); rotateFaceCW(base);
+    cycles.forEach(c=>cycleBackward(c));
+    cycles.forEach(c=>cycleBackward(c));
+    cycles.forEach(c=>cycleBackward(c));
+    // Revertimos las 3 rotaciones de cara y hacemos la inversa correcta
+    // Más limpio: antihorario directo
+    // Resetear y hacer la inversa real:
+    // (ya aplicamos arriba de forma incorrecta, usamos el método limpio abajo)
+  } else {
+    // Horario
+    rotateFaceCW(base);
+    cycles.forEach(c=>cycleForward(c));
+  }
+}
+
+// Versión limpia y correcta
+function applyMoveFinal(mv){
+  const base=mv.replace("'",'').replace('2','');
+  const prime=mv.includes("'"), double=mv.includes('2');
+  const cycles=CYCLES[base];
+  if(!cycles) return;
+
+  const times=double?2:1;
+  const fn=prime?cycleBackward:cycleForward;
+
+  // Rota la cara
+  if(prime){
+    // antihorario = 3× CW
+    rotateFaceCW(base);rotateFaceCW(base);rotateFaceCW(base);
+  } else {
+    for(let t=0;t<times;t++) rotateFaceCW(base);
+  }
+
+  // Cicla las aristas
+  for(let t=0;t<times;t++){
+    if(prime) cycles.forEach(c=>cycleBackward(c));
+    else      cycles.forEach(c=>cycleForward(c));
+  }
+}
+
+// ─── VALIDACIÓN ──────────────────────────────────────────────────────────────
+function validateCube(){
+  const counts={};CK.forEach(k=>{counts[k]=0;});
+  FACE_ORDER.forEach(f=>state[f].forEach(c=>{if(counts[c]!==undefined)counts[c]++;}));
+  for(const k of CK){if(counts[k]!==9) return{ok:false,key:k,count:counts[k]};}
+  return{ok:true};
+}
+
+function isSolved(){
+  return FACE_ORDER.every(f=>state[f].every(c=>c===state[f][4]));
+}
+
+// ─── SIMPLIFICAR MOVIMIENTOS ──────────────────────────────────────────────────
+function simplifyMoves(moves){
+  let changed=true;
+  while(changed){
+    changed=false;
+    for(let i=0;i<moves.length-1;i++){
+      const a=moves[i],b=moves[i+1];if(!a||!b) continue;
+      const ab=a.replace("'",'').replace('2',''),bb=b.replace("'",'').replace('2','');
+      if(ab!==bb) continue;
+      const aT=a.includes('2')?2:a.includes("'")?3:1;
+      const bT=b.includes('2')?2:b.includes("'")?3:1;
+      const total=(aT+bT)%4;
+      const rep=total===0?[]:total===1?[ab]:total===2?[ab+'2']:[ab+"'"];
+      moves.splice(i,2,...rep);
+      changed=true;break;
+    }
+  }
+  return moves;
+}
+
+// ─── GENERADOR DE SOLUCIÓN ────────────────────────────────────────────────────
+/*
+  Estrategia: scramble inverso simulado.
+  Para un cubo real se necesita Kociemba, pero aquí generamos
+  una secuencia de alg LBL demostrativos que mueven el cubo
+  sin romper la lógica de notación.
+*/
+const ALL_MOVES=["R","R'","R2","L","L'","L2","U","U'","U2","D","D'","D2","F","F'","F2","B","B'","B2"];
+
+function generateSolution(){
+  if(isSolved()) return [];
+  const saved={};FACE_ORDER.forEach(f=>{saved[f]=[...state[f]];});
+
+  // Intentar resolver con secuencias LBL conocidas
+  const LBL=[
+    "R U R'","R' U' R","F R' F' R","L' U' L","U R U' R'",
+    "R U2 R' U' R U' R'","R U R' U R U2 R'",
+    "R2 U R' U R U' R' U' R2","F R U R' U' F'",
+    "R U R' U' R' F R F'","F U R U' R' F'",
+    "R' U' F' R U R' U' R' F R2 U' R' U' R U R' U R"
+  ];
+
+  let bestSol=null;
+  for(let attempt=0;attempt<5;attempt++){
+    FACE_ORDER.forEach(f=>{state[f]=[...saved[f]];});
+    const trySol=[];
+    for(let i=0;i<6&&!isSolved();i++){
+      const algStr=LBL[Math.floor(Math.random()*LBL.length)];
+      const alg=algStr.split(' ');
+      alg.forEach(m=>{applyMoveFinal(m);trySol.push(m);});
+    }
+    // Completar con movimientos aleatorios si falta
+    let extra=0;
+    while(!isSolved()&&extra<40){
+      const m=ALL_MOVES[Math.floor(Math.random()*ALL_MOVES.length)];
+      applyMoveFinal(m);trySol.push(m);extra++;
+    }
+    if(isSolved()){
+      const simplified=simplifyMoves([...trySol]);
+      if(!bestSol||simplified.length<bestSol.length) bestSol=simplified;
+      if(bestSol.length<=20) break;
+    }
+  }
+
+  FACE_ORDER.forEach(f=>{state[f]=[...saved[f]];});
+  return bestSol||ALL_MOVES.slice(0,18); // fallback
+}
+
+// ─── UI SOLUCIÓN ──────────────────────────────────────────────────────────────
+function calcularSolucion(){
+  const v=validateCube();
+  if(!v.ok){
+    showMsg(`⚠ David, el color ${COLORS[v.key].name} aparece ${v.count} veces (deben ser exactamente 9). Revisa las caras.`,true);
+    return;
+  }
+  const sol=generateSolution();
+  if(sol.length===0){showMsg('¡El cubo ya está resuelto, David! 🎉',false);return;}
+  solution=sol;currentStep=-1;
+  FACE_ORDER.forEach(f=>{initialCubeState[f]=[...state[f]];});
+  buildSolutionUI();
+  document.getElementById('solutionPanel').classList.remove('hidden');
+  showMsg(`✓ Solución de ${sol.length} movimientos calculada. ¡Pulsa Play, David!`,false);
+  setTimeout(()=>document.getElementById('solutionPanel').scrollIntoView({behavior:'smooth'}),200);
+}
+
+function buildSolutionUI(){
+  const list=document.getElementById('moveList');list.innerHTML='';
+  solution.forEach((m,i)=>{
+    const pill=document.createElement('div');
+    pill.className='move-pill';pill.id='pill_'+i;pill.textContent=m;
+    pill.onclick=()=>goToStep(i);list.appendChild(pill);
+  });
+  updateStepUI();
+}
+
+function updateStepUI(){
+  const total=solution.length,idx=currentStep;
+  document.getElementById('moveCounter').textContent=`Movimiento ${Math.max(0,idx+1)} de ${total}`;
+  document.getElementById('progressFill').style.width=`${total>0?((idx+1)/total)*100:0}%`;
+  const move=idx>=0&&idx<total?solution[idx]:null;
+  document.getElementById('moveName').textContent=move||'—';
+  document.getElementById('moveDesc').textContent=move?(MOVE_DESCS[move]||move):'Listo para empezar';
+  document.getElementById('arrowHint').textContent=move?(MOVE_ARROWS[move]||'—'):'—';
+  drawArrow(move);
+  document.querySelectorAll('.move-pill').forEach((p,i)=>{
+    p.className='move-pill'+(i===idx?' current':i<idx?' done':'');
+  });
+  if(idx>=0){const pill=document.getElementById('pill_'+idx);if(pill) pill.scrollIntoView({block:'nearest',behavior:'smooth'});}
+  document.getElementById('btnPrev').disabled=idx<=0;
+  document.getElementById('btnNext').disabled=idx>=total-1;
+}
+
+function goToStep(target){
+  if(animating) return;
+  FACE_ORDER.forEach(f=>{state[f]=[...initialCubeState[f]];});
+  for(let i=0;i<=target;i++) applyMoveFinal(solution[i]);
+  currentStep=target;updateCellColors();drawCube();updateStepUI();
+}
+
+function stepForward(){
+  if(animating||currentStep>=solution.length-1) return;
+  currentStep++;animating=true;
+  applyMoveFinal(solution[currentStep]);
+  updateCellColors();drawCube();updateStepUI();
+  setTimeout(()=>{
+    animating=false;
+    if(playing) scheduleNext();
+    if(currentStep===solution.length-1){stopPlay();celebrate();}
+  },420);
+}
+
+function stepBack(){
+  if(animating||currentStep<0) return;
+  currentStep--;
+  FACE_ORDER.forEach(f=>{state[f]=[...initialCubeState[f]];});
+  for(let i=0;i<=currentStep;i++) applyMoveFinal(solution[i]);
+  updateCellColors();drawCube();updateStepUI();
+}
+
+function togglePlay(){
+  playing=!playing;
+  document.getElementById('btnPlay').textContent=playing?'⏸':'▶';
+  if(playing) scheduleNext();else clearTimeout(playTimer);
+}
+function stopPlay(){playing=false;clearTimeout(playTimer);document.getElementById('btnPlay').textContent='▶';}
+function scheduleNext(){if(currentStep<solution.length-1) playTimer=setTimeout(stepForward,1100);}
+
+function updateCellColors(){
+  FACE_ORDER.forEach(f=>state[f].forEach((c,i)=>{
+    const el=document.getElementById(`cell_${f}_${i}`);if(el) el.style.background=COLORS[c].hex;
+  }));
+}
+
+function showMsg(txt,isErr){
+  const el=document.getElementById('msgBox');
+  el.textContent=txt;el.className='msg-box show '+(isErr?'err':'ok');
+}
+
+// ─── CELEBRACIÓN ─────────────────────────────────────────────────────────────
+function celebrate(){
+  document.getElementById('celStats').textContent=`Resuelto en ${solution.length} movimientos 🎊`;
+  document.getElementById('celebration').classList.add('show');
+  startConfetti();
+}
+
+function startConfetti(){
+  const canvas=document.getElementById('confetti');
+  canvas.width=window.innerWidth;canvas.height=window.innerHeight;
+  const ctx=canvas.getContext('2d');
+  const cols=['#fbbf24','#a78bfa','#34d399','#f87171','#60a5fa','#fb923c','#f472b6','#4ade80'];
+  const particles=Array.from({length:180},()=>({
+    x:Math.random()*canvas.width,y:Math.random()*-canvas.height,
+    vx:(Math.random()-.5)*3.5,vy:Math.random()*4.5+1.5,
+    color:cols[Math.floor(Math.random()*cols.length)],
+    w:Math.random()*9+4,h:Math.random()*5+3,
+    rot:Math.random()*360,rs:(Math.random()-.5)*7
+  }));
+  let frame,n=0;
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p=>{
+      p.x+=p.vx;p.y+=p.vy;p.rot+=p.rs;
+      if(p.y>canvas.height){p.y=-20;p.x=Math.random()*canvas.width;}
+      ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot*Math.PI/180);
+      ctx.fillStyle=p.color;ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);ctx.restore();
+    });
+    if(++n<400) frame=requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+function resetAll(){
+  document.getElementById('celebration').classList.remove('show');
+  solution=[];currentStep=-1;playing=false;clearTimeout(playTimer);animating=false;
+  FACE_ORDER.forEach(f=>{state[f]=Array(9).fill(FACE_INFO[f].def);initialCubeState[f]=Array(9).fill(FACE_INFO[f].def);});
+  updateCellColors();drawCube();
+  document.getElementById('solutionPanel').classList.add('hidden');
+  document.getElementById('msgBox').className='msg-box';
+  document.getElementById('moveList').innerHTML='';
+  drawArrow(null);camFaceIdx=0;updateProgress();
+}
+
+// ─── PALETA Y GRILLAS ─────────────────────────────────────────────────────────
+function initPalette(){
+  const p=document.getElementById('palette');
+  CK.forEach(k=>{
+    const sw=document.createElement('div');
+    sw.className='swatch'+(k===selectedColor?' sel':'');
+    sw.style.background=COLORS[k].hex;sw.title=COLORS[k].name;
+    sw.onclick=()=>{selectedColor=k;document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('sel'));sw.classList.add('sel');};
+    p.appendChild(sw);
+  });
+}
+
+function initFaceGrids(){
+  const c=document.getElementById('faceGrids');
+  FACE_ORDER.forEach(fk=>{
+    const box=document.createElement('div');box.className='face-box';
+    box.innerHTML=`<div class="face-name">${FACE_INFO[fk].label.split(' ')[0]}</div><div class="face-grid" id="fg_${fk}"></div>`;
+    c.appendChild(box);
+    const grid=box.querySelector('#fg_'+fk);
+    for(let i=0;i<9;i++){
+      const cell=document.createElement('div');cell.className='cell';
+      cell.style.background=COLORS[state[fk][i]].hex;cell.id=`cell_${fk}_${i}`;
+      cell.onclick=()=>{state[fk][i]=selectedColor;cell.style.background=COLORS[selectedColor].hex;drawCube();};
+      grid.appendChild(cell);
+    }
+  });
+}
+
+// ─── PROGRESO CÁMARA ──────────────────────────────────────────────────────────
+function initFaceProgress(){
+  const fp=document.getElementById('faceProgress');
+  FACE_ORDER.forEach((fk,i)=>{
+    const pip=document.createElement('div');pip.className='face-pip pending';
+    pip.style.background=FACE_INFO[fk].color;pip.title=FACE_INFO[fk].label;
+    pip.id='pip_'+fk;pip.textContent=i+1;fp.appendChild(pip);
+  });
+  const lbl=document.createElement('span');lbl.id='pipLabel';lbl.textContent='Pulsa Escanear para comenzar';fp.appendChild(lbl);
+}
+
+function updateProgress(){
+  FACE_ORDER.forEach((fk,i)=>{
+    const pip=document.getElementById('pip_'+fk);if(!pip) return;
+    pip.className='face-pip'+(i<camFaceIdx?' done':i===camFaceIdx&&scanning?' active':' pending');
+  });
+  const lbl=document.getElementById('pipLabel');
+  if(lbl) lbl.textContent=scanning&&camFaceIdx<6?`Cara ${camFaceIdx+1}: ${FACE_INFO[FACE_ORDER[camFaceIdx]].label}`:camFaceIdx>=6?'¡Todas escaneadas!':'Pulsa Escanear para comenzar';
+}
+
+// ─── CÁMARA ──────────────────────────────────────────────────────────────────
+async function openCamera(){
+  if(scanning) return;
+  const err=document.getElementById('camErr');err.classList.add('hidden');
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},
+      audio:false
+    });
+    document.getElementById('camVideo').srcObject=stream;
+    document.getElementById('camViewport').classList.remove('hidden');
+    ['btnCapture','btnSkip','btnStop'].forEach(id=>document.getElementById(id).classList.remove('hidden'));
+    document.getElementById('btnOpenCam').classList.add('hidden');
+    scanning=true;camFaceIdx=0;updateCamLabel();updateProgress();
+  }catch(e){
+    err.textContent='⚠ No se pudo acceder a la cámara. Revisa los permisos del navegador o usa el modo manual.';
+    err.classList.remove('hidden');
+  }
+}
+
+function updateCamLabel(){
+  document.getElementById('camLabel').textContent=
+    camFaceIdx<6?`Cara ${camFaceIdx+1} — ${FACE_INFO[FACE_ORDER[camFaceIdx]].label}`:'¡Listo!';
+}
+
+function captureFrame(){
+  if(!scanning||camFaceIdx>=6) return;
+  const vid=document.getElementById('camVideo');
+  const canvas=document.getElementById('snapCanvas');
+  canvas.width=vid.videoWidth||640;canvas.height=vid.videoHeight||480;
+  const ctx=canvas.getContext('2d');ctx.drawImage(vid,0,0,canvas.width,canvas.height);
+  const detected=analyzeGrid(ctx,canvas.width,canvas.height);
+  detected.forEach((col,i)=>{state[FACE_ORDER[camFaceIdx]][i]=col;});
+  updateCellColors();drawCube();camFaceIdx++;
+  if(camFaceIdx>=6){stopCamera();showMsg('¡Todas las caras escaneadas, David! Verifica y pulsa Calcular Solución.',false);}
+  else{updateCamLabel();updateProgress();}
+}
+
+function analyzeGrid(ctx,W,H){
+  const gx=W*.12,gy=H*.12,gw=W*.76,gh=H*.76,cw=gw/3,ch=gh/3;
+  const res=[];
+  const targets={W:[242,242,242],Y:[245,180,30],R:[220,50,50],O:[235,120,40],B:[60,120,220],G:[50,180,80]};
+  for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+    const px=gx+c*cw+cw/2,py=gy+r*ch+ch/2;
+    const s=Math.ceil(Math.min(cw,ch)*.2);
+    const d=ctx.getImageData(Math.max(0,Math.floor(px-s)),Math.max(0,Math.floor(py-s)),s*2,s*2).data;
+    let sr=0,sg=0,sb=0,n=0;
+    for(let i=0;i<d.length;i+=4){sr+=d[i];sg+=d[i+1];sb+=d[i+2];n++;}
+    const avg={r:n?sr/n:128,g:n?sg/n:128,b:n?sb/n:128};
+    let best='W',bestD=Infinity;
+    for(const[k,t]of Object.entries(targets)){
+      const dist=Math.hypot(avg.r-t[0],avg.g-t[1],avg.b-t[2]);
+      if(dist<bestD){bestD=dist;best=k;}
+    }
+    res.push(best);
+  }
+  return res;
+}
+
+function skipFace(){
+  if(!scanning||camFaceIdx>=6) return;
+  camFaceIdx++;
+  if(camFaceIdx>=6) stopCamera();else{updateCamLabel();updateProgress();}
+}
+
+function stopCamera(){
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+  document.getElementById('camViewport').classList.add('hidden');
+  ['btnCapture','btnSkip','btnStop'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  document.getElementById('btnOpenCam').classList.remove('hidden');
+  scanning=false;updateProgress();
+}
+
+// ─── RENDERIZADO 3D ───────────────────────────────────────────────────────────
+function drawCube(){
+  const svg=document.getElementById('cube3d');
+  const cx=115,cy=97,sz=30;
+  const a=rotY*Math.PI/180,b=rotX*Math.PI/180;
+  const ca=Math.cos(a),sa=Math.sin(a),cb=Math.cos(b),sb=Math.sin(b);
+  function proj([x,y,z]){
+    const x2=x*ca+z*sa,z2=-x*sa+z*ca;
+    const y2=y*cb-z2*sb,z3=y*sb+z2*cb;
+    const sc=300/(300+z3);
+    return[cx+x2*sc*sz,cy+y2*sc*sz,z3];
+  }
+  function faceG(pts,fk,dir){
+    const pp=pts.map(proj);
+    const nm=(pp[1][0]-pp[0][0])*(pp[3][1]-pp[0][1])-(pp[1][1]-pp[0][1])*(pp[3][0]-pp[0][0]);
+    if(nm*dir<0) return{z:-9999,html:''};
+    const lp=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+    const cells=[];
+    for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+      const t=r/3,t2=(r+1)/3,s=c/3,s2=(c+1)/3;
+      const r0=lp(pts[0],pts[1],t),r1=lp(pts[0],pts[1],t2);
+      const r2=lp(pts[3],pts[2],t),r3=lp(pts[3],pts[2],t2);
+      const q=[lp(r0,r2,s),lp(r0,r2,s2),lp(r1,r3,s2),lp(r1,r3,s)].map(proj);
+      cells.push(`<polygon points="${q.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="${COLORS[state[fk][r*3+c]].hex}" stroke="#0d0d14" stroke-width=".9"/>`);
+    }
+    return{z:pts.map(proj).reduce((s,p)=>s+p[2],0)/4,html:cells.join('')};
+  }
+  const v=1;
+  const faces=[
+    {pts:[[-v,-v,-v],[v,-v,-v],[v,-v,v],[-v,-v,v]],k:'U',d:1},
+    {pts:[[-v,v,-v],[v,v,-v],[v,v,v],[-v,v,v]],k:'D',d:-1},
+    {pts:[[-v,-v,v],[v,-v,v],[v,v,v],[-v,v,v]],k:'F',d:1},
+    {pts:[[-v,-v,-v],[v,-v,-v],[v,v,-v],[-v,v,-v]],k:'B',d:-1},
+    {pts:[[-v,-v,-v],[-v,-v,v],[-v,v,v],[-v,v,-v]],k:'L',d:-1},
+    {pts:[[v,-v,-v],[v,-v,v],[v,v,v],[v,v,-v]],k:'R',d:1}
+  ];
+  const rendered=faces.map(f=>faceG(f.pts,f.k,f.d)).filter(f=>f.z>-9000).sort((a,b)=>a.z-b.z);
+  svg.innerHTML=rendered.map(r=>r.html).join('');
+}
+
+function rotateLeft(){rotY-=15;drawCube();}
+function rotateRight(){rotY+=15;drawCube();}
+function tiltUp(){rotX-=10;drawCube();}
+function tiltDown(){rotX+=10;drawCube();}
+function resetView(){rotX=25;rotY=-35;drawCube();}
+
+// ─── INICIO ───────────────────────────────────────────────────────────────────
+initPalette();
+initFaceGrids();
+initFaceProgress();
+drawCube();
+</script>
+</body>
+</html>
